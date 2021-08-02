@@ -103,7 +103,31 @@ local function UpdateCircuitPower(inst)
     inst._circuittask = nil
     if inst.components.fueled ~= nil then
         if inst.components.fueled.consuming then
-            local load = 0
+            local devices = 0
+            local allbatteries = 0
+            inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+                netnode.components.circuitnode:ForEachNode(function(netnode, node)
+                    print("node:",node.components)
+                    local batteries = 0
+                    node.components.circuitnode:ForEachNode(function(node, battery)
+                        --if battery.components.fueled ~= nil and battery.components.fueled.consuming then
+                        batteries = batteries + 1
+                        --end
+                    end)
+                    devices = devices + 1 / batteries
+                end)
+                allbatteries = allbatteries + 1
+                --少一个是否有燃料判断
+            end)
+            print("allbatteries:",allbatteries)
+            print("device:",devices)
+            --考虑要不要加devices与allbatteries数值校验避免电网直接烧掉所有电？
+            inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+                netnode.components.fueled.rate = math.max(devices/allbatteries, TUNING.WINONA_BATTERY_MIN_LOAD)
+            end)
+
+
+            --[[local load = 0
             inst.components.circuitnode:ForEachNode(function(inst, node)
                 local batteries = 0
                 node.components.circuitnode:ForEachNode(function(node, battery)
@@ -114,6 +138,7 @@ local function UpdateCircuitPower(inst)
                 load = load + 1 / batteries
             end)
             inst.components.fueled.rate = math.max(load, TUNING.WINONA_BATTERY_MIN_LOAD)
+            --]]
         else
             inst.components.fueled.rate = 0
         end
@@ -378,6 +403,7 @@ end
 local function OnInit(inst)
     inst._inittask = nil
     inst.components.circuitnode:ConnectTo("engineering")
+    inst.components.circuitnode:ConnectToNet("engineeringbattery")
 end
 
 local function OnLoadPostPass(inst)
@@ -400,6 +426,7 @@ end
 local function OnBuilt2(inst)
     if inst.AnimState:IsCurrentAnimation("place") then
         inst.components.circuitnode:ConnectTo("engineering")
+        inst.components.circuitnode:ConnectToNet("engineeringbattery")
     end
 end
 
