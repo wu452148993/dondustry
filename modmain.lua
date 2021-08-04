@@ -17,6 +17,7 @@ Assets = {
 
 AddComponentPostInit("circuitnode", function(self)
 
+	self.numactivenodes = 0 --电网有没有电值
 	self.numnetnodes = 0
 	function self:ConnectToNet(tag)
 		if self.neighbors == nil then
@@ -97,5 +98,17 @@ AddComponentPostInit("circuitnode", function(self)
 		oldOnRemoveEntity(self)
 	end
 
+	function self:AddActiveNodes()
+		self:ForEachNetNode(function(inst, netnode)
+			netnode.components.circuitnode.numactivenodes = netnode.components.circuitnode.numactivenodes + 1
+			print("AddActiveNodes, numactivenodes:",netnode.components.circuitnode.numactivenodes)
+		end)
+	end
 
+	function self:SubActiveNodes()
+		self:ForEachNetNode(function(inst, netnode)
+			netnode.components.circuitnode.numactivenodes = netnode.components.circuitnode.numactivenodes - 1
+			print("SubActiveNodes, numactivenodes:",netnode.components.circuitnode.numactivenodes)
+		end)
+	end
 end)

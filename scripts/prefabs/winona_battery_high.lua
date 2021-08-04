@@ -92,11 +92,23 @@ local function StartBattery(inst)
     end
 end
 
+local function StartAllBattery(inst)
+    inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+        StartBattery(netnode)
+    end)
+end
+
 local function StopBattery(inst)
     if inst._batterytask ~= nil then
         inst._batterytask:Cancel()
         inst._batterytask = nil
     end
+end
+
+local function StopAllBattery(inst)
+    inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+        StopBattery(netnode)
+    end)
 end
 
 local function UpdateCircuitPower(inst)
@@ -107,27 +119,29 @@ local function UpdateCircuitPower(inst)
             local allbatteries = 0
             inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
                 netnode.components.circuitnode:ForEachNode(function(netnode, node)
-                    print("node:",node.components)
+                    print("UpdateCircuitPower, node:",node.components)
                     local batteries = 0
                     node.components.circuitnode:ForEachNode(function(node, battery)
                         --if battery.components.fueled ~= nil and battery.components.fueled.consuming then
-                        batteries = batteries + 1
-                        --end
+                        if battery.components.circuitnode.numactivenodes > 0 then
+                            batteries = batteries + 1
+                        end
                     end)
                     devices = devices + 1 / batteries
                 end)
-                allbatteries = allbatteries + 1
+                if netnode.components.fueled ~= nil and netnode.components.fueled.consuming then
+                    allbatteries = allbatteries + 1
+                end
                 --少一个是否有燃料判断
             end)
-            print("allbatteries:",allbatteries)
-            print("device:",devices)
+            print("UpdateCircuitPower, allbatteries:",allbatteries)
+            print("UpdateCircuitPower, device:",devices)
             --考虑要不要加devices与allbatteries数值校验避免电网直接烧掉所有电？
             inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
                 netnode.components.fueled.rate = math.max(devices/allbatteries, TUNING.WINONA_BATTERY_MIN_LOAD)
             end)
-
-
-            --[[local load = 0
+            --[[
+            local load = 0
             inst.components.circuitnode:ForEachNode(function(inst, node)
                 local batteries = 0
                 node.components.circuitnode:ForEachNode(function(node, battery)
@@ -165,7 +179,8 @@ local function BroadcastCircuitChanged(inst)
 end
 
 local function OnConnectCircuit(inst)--, node)
-    if inst.components.fueled ~= nil and inst.components.fueled.consuming then
+    --if inst.components.fueled ~= nil and inst.components.fueled.consuming then
+    if inst.components.circuitnode.numactivenodes > 0 then
         StartBattery(inst)
     end
     OnCircuitChanged(inst)
@@ -342,8 +357,13 @@ end
 
 local function OnFuelEmpty(inst)
     inst.components.fueled:StopConsuming()
+
     BroadcastCircuitChanged(inst)
-    StopBattery(inst)
+    inst.components.circuitnode:SubActiveNodes(inst)
+    if inst.components.circuitnode.numactivenodes == 0 then
+        StopAllBattery(inst)
+    end
+    --StopBattery(inst)
     StopSoundLoop(inst)
     inst.AnimState:OverrideSymbol("m2", "winona_battery_high", "m1")
     inst.AnimState:OverrideSymbol("plug", "winona_battery_high", "plug_off")
@@ -389,6 +409,10 @@ local function OnLoad(inst, data, ents)
         elseif not inst.components.fueled:IsEmpty() then
             if not inst.components.fueled.consuming then
                 inst.components.fueled:StartConsuming()
+                if inst.components.circuitnode.numactivenodes == 0 then
+                    StartAllBattery(inst)--此处可能多包含了自己 若不包含 需要自己+1
+                end
+                inst.components.circuitnode:AddActiveNodes(inst)
                 BroadcastCircuitChanged(inst)
             end
             inst.AnimState:PlayAnimation("idle_charge", true)
@@ -551,10 +575,16 @@ local function OnGemGiven(inst, giver, item)
 
     if not inst.components.fueled.consuming then
         inst.components.fueled:StartConsuming()
+        if inst.components.circuitnode.numactivenodes == 0 then
+            StartAllBattery(inst)
+        end
+        inst.components.circuitnode:AddActiveNodes(inst)
         BroadcastCircuitChanged(inst)
+        --[[暂时被包含于StartAllBattery 若不包含 需要自己+1
         if inst.components.circuitnode:IsConnected() then
             StartBattery(inst)
         end
+        -]]
         if not inst:IsAsleep() then
             StartSoundLoop(inst)
         end
