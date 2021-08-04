@@ -435,6 +435,7 @@ local function OnBuilt(inst)--, data)
         inst._inittask:Cancel()
         inst._inittask = nil
     end
+    inst.components.circuitnode:DisconnectNet()
     inst.components.circuitnode:Disconnect()
     inst:ListenForEvent("animover", OnBuilt3)
     inst.AnimState:PlayAnimation("place")
