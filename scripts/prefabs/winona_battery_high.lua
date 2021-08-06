@@ -113,50 +113,51 @@ end
 
 local function UpdateCircuitPower(inst)
     inst._circuittask = nil
-    if inst.components.fueled ~= nil then
-        if inst.components.fueled.consuming then
-            local devices = 0
-            local allbatteries = 0
-            inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
-                netnode.components.circuitnode:ForEachNode(function(netnode, node)
-                    print("UpdateCircuitPower, node:",node.components)
-                    local batteries = 0
-                    node.components.circuitnode:ForEachNode(function(node, battery)
-                        --if battery.components.fueled ~= nil and battery.components.fueled.consuming then
-                        if battery.components.circuitnode.numactivenodes > 0 then
-                            batteries = batteries + 1
-                        end
-                    end)
-                    devices = devices + 1 / batteries
-                end)
-                if netnode.components.fueled ~= nil and netnode.components.fueled.consuming then
-                    allbatteries = allbatteries + 1
-                end
-                --少一个是否有燃料判断
-            end)
-            print("UpdateCircuitPower, allbatteries:",allbatteries)
-            print("UpdateCircuitPower, device:",devices)
-            --考虑要不要加devices与allbatteries数值校验避免电网直接烧掉所有电？
-            inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
-                netnode.components.fueled.rate = math.max(devices/allbatteries, TUNING.WINONA_BATTERY_MIN_LOAD)
-            end)
-            --[[
-            local load = 0
-            inst.components.circuitnode:ForEachNode(function(inst, node)
+    --if inst.components.fueled ~= nil then
+       -- if inst.components.fueled.consuming then
+    if inst.components.circuitnode.numactivenodes > 0 then
+        local devices = 0
+        local allbatteries = 0
+        inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+            netnode.components.circuitnode:ForEachNode(function(netnode, node)
+                print("UpdateCircuitPower, node:",node.components)
                 local batteries = 0
                 node.components.circuitnode:ForEachNode(function(node, battery)
-                    if battery.components.fueled ~= nil and battery.components.fueled.consuming then
+                    --if battery.components.fueled ~= nil and battery.components.fueled.consuming then
+                    if battery.components.circuitnode.numactivenodes > 0 then
                         batteries = batteries + 1
                     end
                 end)
-                load = load + 1 / batteries
+                devices = devices + 1 / batteries
             end)
-            inst.components.fueled.rate = math.max(load, TUNING.WINONA_BATTERY_MIN_LOAD)
-            --]]
-        else
-            inst.components.fueled.rate = 0
-        end
+            if netnode.components.fueled ~= nil and netnode.components.fueled.consuming then
+                allbatteries = allbatteries + 1
+            end
+            --少一个是否有燃料判断
+        end)
+        print("UpdateCircuitPower, allbatteries:",allbatteries)
+        print("UpdateCircuitPower, device:",devices)
+        --考虑要不要加devices与allbatteries数值校验避免电网直接烧掉所有电？
+        inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+            netnode.components.fueled.rate = math.max(devices/allbatteries, TUNING.WINONA_BATTERY_MIN_LOAD)
+        end)
+        --[[
+        local load = 0
+        inst.components.circuitnode:ForEachNode(function(inst, node)
+            local batteries = 0
+            node.components.circuitnode:ForEachNode(function(node, battery)
+                if battery.components.fueled ~= nil and battery.components.fueled.consuming then
+                    batteries = batteries + 1
+                end
+            end)
+            load = load + 1 / batteries
+        end)
+        inst.components.fueled.rate = math.max(load, TUNING.WINONA_BATTERY_MIN_LOAD)
+        --]]
+    else
+        inst.components.fueled.rate = 0
     end
+    --end
 end
 
 local function OnCircuitChanged(inst)
