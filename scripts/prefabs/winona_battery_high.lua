@@ -93,8 +93,10 @@ local function StartBattery(inst)
 end
 
 local function StartAllBattery(inst)
-    inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
-        StartBattery(netnode)
+    inst.components.gridnode:ForAllGridNode(function(inst, netnode)
+        if netnode.components.circuitnode:IsConnected() then
+            StartBattery(netnode)
+        end
     end)
 end
 
@@ -106,25 +108,37 @@ local function StopBattery(inst)
 end
 
 local function StopAllBattery(inst)
-    inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+    inst.components.gridnode:ForAllGridNode(function(inst, netnode)
         StopBattery(netnode)
     end)
 end
+
+
+local function IsElectrify(inst) --待优化 找到第一个有电设备即返回
+    local active = false
+    inst.components.gridnode:ForAllGridNode(function(inst, node)
+        if node.components.fueled ~= nil and node.components.fueled.consuming then
+            active = true
+        end
+    end)
+    return active
+end
+
 
 local function UpdateCircuitPower(inst)
     inst._circuittask = nil
     --if inst.components.fueled ~= nil then
        -- if inst.components.fueled.consuming then
-    if inst.components.circuitnode.numactivenodes > 0 then
+    if  IsElectrify(inst) then
         local devices = 0
         local allbatteries = 0
-        inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+        inst.components.gridnode:ForAllGridNode(function(inst, netnode)
             netnode.components.circuitnode:ForEachNode(function(netnode, node)
                 print("UpdateCircuitPower, node:",node.components)
                 local batteries = 0
                 node.components.circuitnode:ForEachNode(function(node, battery)
                     --if battery.components.fueled ~= nil and battery.components.fueled.consuming then
-                    if battery.components.circuitnode.numactivenodes > 0 then
+                    if IsElectrify(battery) then
                         batteries = batteries + 1
                     end
                 end)
@@ -138,7 +152,7 @@ local function UpdateCircuitPower(inst)
         print("UpdateCircuitPower, allbatteries:",allbatteries)
         print("UpdateCircuitPower, device:",devices)
         --考虑要不要加devices与allbatteries数值校验避免电网直接烧掉所有电？
-        inst.components.circuitnode:ForEachNetNode(function(inst, netnode)
+        inst.components.gridnode:ForAllGridNode(function(inst, netnode)
             netnode.components.fueled.rate = math.max(devices/allbatteries, TUNING.WINONA_BATTERY_MIN_LOAD)
         end)
         --[[
@@ -170,7 +184,8 @@ local function NotifyCircuitChanged(inst, node)
     node:PushEvent("engineeringcircuitchanged")
 end
 
-local function BroadcastCircuitChanged(inst)
+local function
+BroadcastCircuitChanged(inst)
     --Notify other connected nodes, so that they can notify their connected batteries
     inst.components.circuitnode:ForEachNode(NotifyCircuitChanged)
     if inst._circuittask ~= nil then
@@ -181,8 +196,15 @@ end
 
 local function OnConnectCircuit(inst)--, node)
     --if inst.components.fueled ~= nil and inst.components.fueled.consuming then
-    if inst.components.circuitnode.numactivenodes > 0 then
+    if IsElectrify(inst) then
         StartBattery(inst)
+    end
+    OnCircuitChanged(inst)
+end
+
+local function OnConnectGrid(inst, node)
+    if IsElectrify(inst) then
+        StartAllBattery(inst)
     end
     OnCircuitChanged(inst)
 end
@@ -190,6 +212,13 @@ end
 local function OnDisconnectCircuit(inst)--, node)
     if not inst.components.circuitnode:IsConnected() then
         StopBattery(inst)
+    end
+    OnCircuitChanged(inst)
+end
+
+local function OnDisconnectGrid(inst)--, node)
+    if not IsElectrify(inst) then
+        StopAllBattery(inst)
     end
     OnCircuitChanged(inst)
 end
@@ -360,8 +389,7 @@ local function OnFuelEmpty(inst)
     inst.components.fueled:StopConsuming()
 
     BroadcastCircuitChanged(inst)
-    inst.components.circuitnode:SubActiveNodes(inst)
-    if inst.components.circuitnode.numactivenodes == 0 then
+    if not IsElectrify(inst) then
         StopAllBattery(inst)
     end
     --StopBattery(inst)
@@ -409,11 +437,10 @@ local function OnLoad(inst, data, ents)
             inst.components.burnable.onburnt(inst)
         elseif not inst.components.fueled:IsEmpty() then
             if not inst.components.fueled.consuming then
-                inst.components.fueled:StartConsuming()
-                if inst.components.circuitnode.numactivenodes == 0 then
+                if not IsElectrify(inst) then
                     StartAllBattery(inst)--此处可能多包含了自己 若不包含 需要自己+1
                 end
-                inst.components.circuitnode:AddActiveNodes(inst)
+                inst.components.fueled:StartConsuming()
                 BroadcastCircuitChanged(inst)
             end
             inst.AnimState:PlayAnimation("idle_charge", true)
@@ -428,7 +455,7 @@ end
 local function OnInit(inst)
     inst._inittask = nil
     inst.components.circuitnode:ConnectTo("engineering")
-    inst.components.circuitnode:ConnectToNet("engineeringbattery")
+    inst.components.gridnode:ConnectTo("engineeringbattery")
 end
 
 local function OnLoadPostPass(inst)
@@ -451,7 +478,7 @@ end
 local function OnBuilt2(inst)
     if inst.AnimState:IsCurrentAnimation("place") then
         inst.components.circuitnode:ConnectTo("engineering")
-        inst.components.circuitnode:ConnectToNet("engineeringbattery")
+        inst.components.gridnode:ConnectTo("engineeringbattery")
     end
 end
 
@@ -460,7 +487,7 @@ local function OnBuilt(inst)--, data)
         inst._inittask:Cancel()
         inst._inittask = nil
     end
-    inst.components.circuitnode:DisconnectNet()
+    inst.components.gridnode:Disconnect()
     inst.components.circuitnode:Disconnect()
     inst:ListenForEvent("animover", OnBuilt3)
     inst.AnimState:PlayAnimation("place")
@@ -575,11 +602,10 @@ local function OnGemGiven(inst, giver, item)
     inst.components.fueled:DoDelta(delta)
 
     if not inst.components.fueled.consuming then
-        inst.components.fueled:StartConsuming()
-        if inst.components.circuitnode.numactivenodes == 0 then
+        if not IsElectrify(inst) then
             StartAllBattery(inst)
         end
-        inst.components.circuitnode:AddActiveNodes(inst)
+        inst.components.fueled:StartConsuming()
         BroadcastCircuitChanged(inst)
         --[[暂时被包含于StartAllBattery 若不包含 需要自己+1
         if inst.components.circuitnode:IsConnected() then
@@ -667,6 +693,12 @@ local function fn()
     inst.components.circuitnode:SetOnConnectFn(OnConnectCircuit)
     inst.components.circuitnode:SetOnDisconnectFn(OnDisconnectCircuit)
     inst.components.circuitnode.connectsacrossplatforms = false
+
+    inst:AddComponent("gridnode")
+    inst.components.gridnode:SetRange(TUNING.WINONA_BATTERY_RANGE)
+    inst.components.gridnode:SetOnConnectFn(OnConnectGrid)
+    inst.components.gridnode:SetOnDisconnectFn(OnDisconnectGrid)
+    inst.components.gridnode.connectsacrossplatforms = false
 
     inst:ListenForEvent("onbuilt", OnBuilt)
     inst:ListenForEvent("ondeconstructstructure", DropGems)
