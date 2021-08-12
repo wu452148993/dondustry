@@ -169,7 +169,9 @@ local function UpdateCircuitPower(inst)
         inst.components.fueled.rate = math.max(load, TUNING.WINONA_BATTERY_MIN_LOAD)
         --]]
     else
-        inst.components.fueled.rate = 0
+        inst.components.gridnode:ForAllGridNode(function(inst, netnode)
+            netnode.components.fueled.rate = 0
+        end)
     end
     --end
 end
