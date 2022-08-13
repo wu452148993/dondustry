@@ -1,9 +1,11 @@
-name = "Switch For Winona's Electric Generator"
-author = "Mu"
-version = "1.4.1"
-description = "Winona's Electric Generator switch"..
+name = "Winona's Electric Generator Enhance"
+author = "Wulf"
+version = "1.0.0"
+description = "Winona's Electric Generator Enhance"..
+"\n--为薇诺娜的发电机增加容器,可存放3*3格的宝石"..
 "\n--为薇诺娜的发电机增加开关功能,可以用点击右键切换开关状态"..
 "\n--开启状态时,如果正在供电发电机会有微小的光芒表示已开启"..
+"\n--Add a container for Winona's generator, which can store 3 * 3 gems"..
 "\n--You can control the Winona's Generator by right-click,"..
 "\n--The generator would glow while the generator is supplying electricity."
 forumthread = ""
