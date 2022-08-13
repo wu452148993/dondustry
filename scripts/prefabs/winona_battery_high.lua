@@ -412,6 +412,9 @@ local function AddFuel(inst, slot_num)
 end
 
 local function CheckForFuel(inst)
+    if inst:HasTag("burnt") then
+		return
+	end
 	local item
 	if inst.isopen == false then
 		local slot_num = GEMSLOTS - #inst._gems
@@ -696,7 +699,7 @@ local function fn()
     inst.components.inspectable.getstatus = GetStatus
 
     inst:AddComponent("container")
-    inst.components.container:WidgetSetup("battery_continue")
+    inst.components.container:WidgetSetup("winona_battery_high")
     inst.components.container.onopenfn = onopen
     inst.components.container.onclosefn = onclose
     inst.isopen=false

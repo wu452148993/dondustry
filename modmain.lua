@@ -48,18 +48,22 @@ end
 
 local containers_widgetsetup_old = containers.widgetsetup
 function containers.widgetsetup(container, prefab, data, ...)
-	local t = params[prefab or container.inst.prefab]
-	if t ~= nil then
-		for k, v in pairs(t) do
-			container[k] = v
+    local tt = prefab or container.inst.prefab
+	if tt == "winona_battery_high" then
+		-- 针对winona_battery_high做特殊处理（不加会报错）
+		local t = params[tt]
+		if t ~= nil then
+			for k, v in pairs(t) do
+				container[k] = v
+			end
+			container:SetNumSlots(container.widget.slotpos ~= nil and #container.widget.slotpos or 0)
 		end
-		container:SetNumSlots(container.widget.slotpos ~= nil and #container.widget.slotpos or 0)
 	else
-		containers_widgetsetup_old(container, prefab, data, ...)
+		return containers_widgetsetup_old(container, prefab, data, ...)
 	end
 end
 
-params.battery_continue = Make3x3Chest()
-function params.battery_continue.itemtestfn(container, item, slot)
+params.winona_battery_high = Make3x3Chest()
+function params.winona_battery_high.itemtestfn(container, item, slot)
 	return ItemCheck(item)
 end
