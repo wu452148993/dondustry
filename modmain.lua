@@ -1,13 +1,3 @@
-GLOBAL.setmetatable(
-	env,
-	{
-		__index = function(t, k)
-			return GLOBAL.rawget(GLOBAL, k)
-		end
-	}
-)
-
-
 local Ingredient = GLOBAL.Ingredient
 local RECIPETABS = GLOBAL.RECIPETABS
 local STRINGS = GLOBAL.STRINGS

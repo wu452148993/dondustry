@@ -343,21 +343,102 @@ local function ShatterGems(inst, keepnumgems)
     end
 end
 
+local function return_item(inst) -- Ok, maybe this is dumb, but I need to return first non-empty elemnt of the table without using breaks
+    for k,v in pairs(inst.components.container.slots) do
+        if v then
+            return v
+        end
+    end
+end
+
+local function OnGemGiven(inst, giver, item)
+    if #inst._gems < GEMSLOTS then
+        table.insert(inst._gems, item.prefab)
+        SetGem(inst, #inst._gems, item.prefab)
+        if #inst._gems >= GEMSLOTS then
+            inst.components.trader:Disable()
+        end
+        inst.SoundEmitter:PlaySound("dontstarve/common/telebase_gemplace")
+    end
+
+    local delta = inst.components.fueled.maxfuel / GEMSLOTS
+    if inst.components.fueled:IsEmpty() then
+        --prevent battery level flicker by subtracting a tiny bit from initial fuel
+        delta = delta - .000001
+    else
+        local final = inst.components.fueled.currentfuel + delta
+        local amtpergem = inst.components.fueled.maxfuel / GEMSLOTS
+        local curgemamt = final - math.floor(final / amtpergem) * amtpergem
+        if curgemamt < 3 then
+            --prevent new gem from shattering within 3 seconds of socketing
+            delta = delta + 3 - curgemamt
+        end
+    end
+    inst.components.fueled:DoDelta(delta)
+
+    if inst.components.machine:IsOn() and not inst.components.fueled.consuming then --Mod control
+        inst.components.fueled:StartConsuming()
+        BroadcastCircuitChanged(inst)
+        if inst.components.circuitnode:IsConnected() then
+            StartBattery(inst)
+        end
+        if not inst:IsAsleep() then
+            StartSoundLoop(inst)
+        end
+    end
+
+    PlayHitAnim(inst)
+    inst.SoundEmitter:PlaySound("dontstarve/common/together/battery/up")
+end
+
+local function AddFuel(inst, slot_num)
+	local fuel_added = 0
+    if not inst:HasTag("burnt") then
+		for i = 1,slot_num do
+			local item = return_item(inst)
+			if item == nil then
+				break
+			end
+			OnGemGiven(inst, nil, item)
+			if item.components.stackable.stacksize > 1 then
+				item.components.stackable:SetStackSize(item.components.stackable.stacksize - 1)
+			else
+				inst.components.container:RemoveItem(item, true):Remove()
+			end
+			fuel_added = fuel_added + 1
+        end
+    end
+	return fuel_added
+end
+
+local function CheckForFuel(inst)
+	local item
+	if inst.isopen == false then
+		local slot_num = GEMSLOTS - #inst._gems
+		if slot_num > 0 then
+			AddFuel(inst, slot_num)
+		end
+    end
+end
+
 local function OnFuelEmpty(inst)
-    inst.components.fueled:StopConsuming()
-    BroadcastCircuitChanged(inst)
-    StopBattery(inst)
-    StopSoundLoop(inst)
-    inst.AnimState:OverrideSymbol("m2", "winona_battery_high", "m1")
-    inst.AnimState:OverrideSymbol("plug", "winona_battery_high", "plug_off")
-    if inst.AnimState:IsCurrentAnimation("idle_charge") then
-        inst.AnimState:PlayAnimation("idle_empty")
-        StopIdleChargeSounds(inst)
-    end
-    if not POPULATING then
-        inst.SoundEmitter:PlaySound("dontstarve/common/together/battery/down")
-    end
-    ShatterGems(inst, 0)
+	local fuel_added = AddFuel(inst, GEMSLOTS)
+	if fuel_added == 0 then
+		inst.components.fueled:StopConsuming()
+		BroadcastCircuitChanged(inst)
+		StopBattery(inst)
+		StopSoundLoop(inst)
+		inst.AnimState:OverrideSymbol("m2", "winona_battery_high", "m1")
+		inst.AnimState:OverrideSymbol("plug", "winona_battery_high", "plug_off")
+		if inst.AnimState:IsCurrentAnimation("idle_charge") then
+			inst.AnimState:PlayAnimation("idle_empty")
+			StopIdleChargeSounds(inst)
+		end
+		if not POPULATING then
+			inst.SoundEmitter:PlaySound("dontstarve/common/together/battery/down")
+		end
+		ShatterGems(inst, 0)
+	end
 end
 
 local function OnFuelSectionChange(new, old, inst)
@@ -540,46 +621,6 @@ local function ItemTradeTest(inst, item)
     return true
 end
 
-local function OnGemGiven(inst, giver, item)
-    if #inst._gems < GEMSLOTS then
-        table.insert(inst._gems, item.prefab)
-        SetGem(inst, #inst._gems, item.prefab)
-        if #inst._gems >= GEMSLOTS then
-            inst.components.trader:Disable()
-        end
-        inst.SoundEmitter:PlaySound("dontstarve/common/telebase_gemplace")
-    end
-
-    local delta = inst.components.fueled.maxfuel / GEMSLOTS
-    if inst.components.fueled:IsEmpty() then
-        --prevent battery level flicker by subtracting a tiny bit from initial fuel
-        delta = delta - .000001
-    else
-        local final = inst.components.fueled.currentfuel + delta
-        local amtpergem = inst.components.fueled.maxfuel / GEMSLOTS
-        local curgemamt = final - math.floor(final / amtpergem) * amtpergem
-        if curgemamt < 3 then
-            --prevent new gem from shattering within 3 seconds of socketing
-            delta = delta + 3 - curgemamt
-        end
-    end
-    inst.components.fueled:DoDelta(delta)
-
-    if inst.components.machine:IsOn() and not inst.components.fueled.consuming then --Mod control
-        inst.components.fueled:StartConsuming()
-        BroadcastCircuitChanged(inst)
-        if inst.components.circuitnode:IsConnected() then
-            StartBattery(inst)
-        end
-        if not inst:IsAsleep() then
-            StartSoundLoop(inst)
-        end
-    end
-
-    PlayHitAnim(inst)
-    inst.SoundEmitter:PlaySound("dontstarve/common/together/battery/up")
-end
-
 --Mod control
 local function TurnOn(inst)
     if not inst.components.fueled.consuming then
@@ -603,32 +644,6 @@ local function TurnOff(inst)
     inst.SoundEmitter:PlaySound("dontstarve/common/together/battery/down")
 end
 
-local function return_item(inst) -- Ok, maybe this is dumb, but I need to return first non-empty elemnt of the table without using breaks
-    for k,v in pairs(inst.components.container.slots) do
-        if v then
-            return v
-        end
-    end
-end
-
-local function CheckForFuel(inst)
-    if not inst:HasTag("burnt") then
-        local item
-        if inst.isopen==false then
-            item=return_item(inst)
-            if ItemTradeTest(inst, item) then
-                if #inst._gems < GEMSLOTS then
-                    OnGemGiven(inst, nil, item)
-                    if item.components.stackable.stacksize > 1 then
-                        item.components.stackable:SetStackSize(item.components.stackable.stacksize - 1)
-                    else
-                        inst.components.container:RemoveItem(item, true):Remove()
-                    end
-                end
-            end
-        end
-    end
-end
 
 --------------------------------------------------------------------------
 
