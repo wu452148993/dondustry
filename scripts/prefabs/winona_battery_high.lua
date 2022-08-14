@@ -149,9 +149,9 @@ end
 
 local function OnConnectCircuit(inst)--, node)
     -- Mod control
-    -- if inst.components.fueled ~= nil and inst.components.fueled.consuming then
-    --     StartBattery(inst)
-    -- end
+    if inst.components.machine:IsOn() and inst.components.fueled ~= nil and inst.components.fueled.consuming then
+        StartBattery(inst)
+    end
     OnCircuitChanged(inst)
 end
 
@@ -391,41 +391,39 @@ local function OnGemGiven(inst, giver, item)
     inst.SoundEmitter:PlaySound("dontstarve/common/together/battery/up")
 end
 
-local function AddFuel(inst, slot_num)
+local function AddFuel(inst)
 	local fuel_added = 0
-    if not inst:HasTag("burnt") then
-		for i = 1,slot_num do
-			local item = return_item(inst)
-			if item == nil then
-				break
-			end
-			OnGemGiven(inst, nil, item)
-			if item.components.stackable.stacksize > 1 then
-				item.components.stackable:SetStackSize(item.components.stackable.stacksize - 1)
-			else
-				inst.components.container:RemoveItem(item, true):Remove()
-			end
-			fuel_added = fuel_added + 1
-        end
-    end
+	if inst:HasTag("burnt") then
+		return fuel_added
+	end
+	local slot_num = GEMSLOTS - #inst._gems
+	for i = 1,slot_num do
+		local item = return_item(inst)
+		if item == nil then
+			break
+		end
+		OnGemGiven(inst, nil, item)
+		if item.components.stackable.stacksize > 1 then
+			item.components.stackable:SetStackSize(item.components.stackable.stacksize - 1)
+		else
+			inst.components.container:RemoveItem(item, true):Remove()
+		end
+		fuel_added = fuel_added + 1
+	end
 	return fuel_added
 end
 
 local function CheckForFuel(inst)
-    if inst:HasTag("burnt") then
+    if inst:HasTag("burnt") or inst.isopen then
 		return
 	end
-	local item
-	if inst.isopen == false then
-		local slot_num = GEMSLOTS - #inst._gems
-		if slot_num > 0 then
-			AddFuel(inst, slot_num)
-		end
+	if inst.components.trader.enabled then
+		AddFuel(inst)
     end
 end
 
 local function OnFuelEmpty(inst)
-	local fuel_added = AddFuel(inst, GEMSLOTS)
+	local fuel_added = AddFuel(inst)
 	if fuel_added == 0 then
 		inst.components.fueled:StopConsuming()
 		BroadcastCircuitChanged(inst)

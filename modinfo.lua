@@ -1,6 +1,6 @@
 name = "Winona's Electric Generator Enhance"
 author = "Wulf"
-version = "1.0.2"
+version = "1.0.3"
 description = "Winona's Electric Generator Enhance"..
 "\n--为薇诺娜的发电机增加容器,可存放3*3格的宝石"..
 "\n--为薇诺娜的发电机增加开关功能,可以用点击右键切换开关状态"..
